@@ -41,7 +41,6 @@ def _load_metax_libs():
                     return True
     except Exception:
         pass
-
     # Layout 2 (vanilla): MetaX TE >= 2.13 ships as a plain `transformer_engine`
     # wheel. Installing it into site-packages would clobber this (editable)
     # TE-FL package, so it is expected at an isolated prefix pointed to by the
