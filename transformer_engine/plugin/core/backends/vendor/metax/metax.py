@@ -115,9 +115,7 @@ def _import_tex_module():
     saved_owner = sys.modules.pop("transformer_engine_torch", None)
     try:
         sys.setdlopenflags(os.RTLD_LAZY | os.RTLD_GLOBAL)
-        spec = importlib.util.spec_from_file_location(
-            "transformer_engine_torch", str(matches[0])
-        )
+        spec = importlib.util.spec_from_file_location("transformer_engine_torch", str(matches[0]))
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
     finally:
