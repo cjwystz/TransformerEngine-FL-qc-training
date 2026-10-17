@@ -25,10 +25,7 @@ _NATIVE_NAME = "transformer_engine_torch_metax"
 def _load_importer(namespace):
     """Compile only the real importer, retaining its original implementation."""
     repo_root = Path(__file__).resolve().parents[4]
-    default_source = (
-        repo_root
-        / "transformer_engine/plugin/core/backends/vendor/metax/metax.py"
-    )
+    default_source = repo_root / "transformer_engine/plugin/core/backends/vendor/metax/metax.py"
     source = Path(os.environ.get("METAX_SOURCE", str(default_source)))
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
     functions = [
@@ -60,9 +57,7 @@ def _make_environment(tmp_path, owner_present, self_register, fail=False):
     active_flags = old_flags
     flag_changes = []
     calls = {"spec": 0, "module": 0, "exec": 0}
-    fake_os = SimpleNamespace(
-        environ={"TE_METAX_TE_HOME": str(home)}, RTLD_LAZY=1, RTLD_GLOBAL=256
-    )
+    fake_os = SimpleNamespace(environ={"TE_METAX_TE_HOME": str(home)}, RTLD_LAZY=1, RTLD_GLOBAL=256)
     native_flags = fake_os.RTLD_LAZY | fake_os.RTLD_GLOBAL
 
     def set_flags(flags):

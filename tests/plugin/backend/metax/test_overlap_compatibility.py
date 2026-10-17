@@ -1,3 +1,7 @@
+# Copyright (c) 2026, BAAI. All rights reserved.
+#
+# See LICENSE for license information.
+
 """CPU contract regressions for MetaX legacy Userbuffer adaptation.
 
 Run in the matching TE-FL environment without GPU devices.

@@ -179,6 +179,7 @@ def _legacy_ub_type(native_type):
     if hasattr(native_type, "with_cublasmp"):
         return native_type
     if native_type not in _LEGACY_UB_TYPES:
+
         class LegacyUserbuffer(native_type):
             def with_cublasmp(self):
                 return False
