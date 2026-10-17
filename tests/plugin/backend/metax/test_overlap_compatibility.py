@@ -3,6 +3,7 @@
 Run in the matching TE-FL environment without GPU devices.
 Real pybind/GPU execution is covered separately by the recorded UB/numeric runs.
 """
+
 import enum
 import unittest
 from types import SimpleNamespace
@@ -58,17 +59,22 @@ class RegistryCapture:
 class MetaXOverlapCompatibility(unittest.TestCase):
     def setUp(self):
         self.calls = []
+
         def multicast(device=-1):
             self.calls.append(("multicast", device))
             return device == 3
+
         def mpi():
             self.calls.append(("mpi",))
             return True
+
         def priority(device=-1):
             self.calls.append(("priority", device))
             return (0, -2)
+
         self.native = SimpleNamespace(
-            CommOverlap=LegacyBulk, CommOverlapP2P=LegacyP2P,
+            CommOverlap=LegacyBulk,
+            CommOverlapP2P=LegacyP2P,
             CommOverlapType=NativeComm,
             device_supports_multicast=multicast,
             ubuf_built_with_mpi=mpi,
@@ -85,18 +91,28 @@ class MetaXOverlapCompatibility(unittest.TestCase):
         self.assertTrue(self.backend.ubuf_built_with_mpi())
         self.assertEqual(self.backend.get_stream_priority_range(), (0, -2))
         self.assertEqual(self.backend.get_stream_priority_range(3), (0, -2))
-        self.assertEqual(self.calls, [
-            ("multicast", -1), ("multicast", 3), ("mpi",),
-            ("priority", -1), ("priority", 3),
-        ])
+        self.assertEqual(
+            self.calls,
+            [
+                ("multicast", -1),
+                ("multicast", 3),
+                ("mpi",),
+                ("priority", -1),
+                ("priority", 3),
+            ],
+        )
 
     def test_capability_vendor_registrations_are_callable(self):
         registry = RegistryCapture()
-        with patch.object(metax.MetaxBackend, "is_available", return_value=True), \
-             patch.object(metax.MetaxBackend, "_get_tex", return_value=self.native):
+        with patch.object(metax.MetaxBackend, "is_available", return_value=True), patch.object(
+            metax.MetaxBackend, "_get_tex", return_value=self.native
+        ), patch.object(register_ops.torch.version, "maca", "3.8.1.0", create=True):
             register_ops.register_builtins(registry)
-            wanted = {"device_supports_multicast", "ubuf_built_with_mpi",
-                      "get_stream_priority_range"}
+            wanted = {
+                "device_supports_multicast",
+                "ubuf_built_with_mpi",
+                "get_stream_priority_range",
+            }
             impls = [i for i in registry.impls if i.op_name in wanted]
             self.assertEqual({i.op_name for i in impls}, wanted)
             self.assertEqual(len(impls), 3)
@@ -117,15 +133,40 @@ class MetaXOverlapCompatibility(unittest.TestCase):
 
     def test_legacy_bulk_retains_native_type_and_constructor_contract(self):
         result = self.backend.create_comm_overlap(
-            self.shape, torch.bfloat16, self.helper, 2,
-            4, 5, 1, -1, -2, 1, False, False, True,
+            self.shape,
+            torch.bfloat16,
+            self.helper,
+            2,
+            4,
+            5,
+            1,
+            -1,
+            -2,
+            1,
+            False,
+            False,
+            True,
             comm_type=FrontendComm.RS,
         )
         self.assertIsInstance(result, LegacyBulk)
-        self.assertEqual(result.args, (
-            self.shape, torch.bfloat16, self.helper, 2,
-            4, 5, 1, -1, -2, 1, False, False, True,
-        ))
+        self.assertEqual(
+            result.args,
+            (
+                self.shape,
+                torch.bfloat16,
+                self.helper,
+                2,
+                4,
+                5,
+                1,
+                -1,
+                -2,
+                1,
+                False,
+                False,
+                True,
+            ),
+        )
         self.assertIs(result.native_buffer(), self.shape)
         self.assertIs(result.with_cublasmp(), False)
 
@@ -133,41 +174,50 @@ class MetaXOverlapCompatibility(unittest.TestCase):
         for comm in FrontendComm:
             with self.subTest(comm=comm):
                 result = self.backend.create_comm_overlap_p2p(
-                    self.shape, torch.bfloat16, self.helper, 2, comm,
-                    4, 1, -1, -2, 1, False, False, True, True,
+                    self.shape,
+                    torch.bfloat16,
+                    self.helper,
+                    2,
+                    comm,
+                    4,
+                    1,
+                    -1,
+                    -2,
+                    1,
+                    False,
+                    False,
+                    True,
+                    True,
                 )
                 self.assertIsInstance(result, LegacyP2P)
                 self.assertIs(type(result.args[4]), NativeComm)
                 self.assertEqual(int(result.args[4]), int(comm))
-                self.assertEqual(result.args[:4],
-                    (self.shape, torch.bfloat16, self.helper, 2))
-                self.assertEqual(result.args[5:],
-                    (4, 1, -1, -2, 1, False, False, True, True))
+                self.assertEqual(result.args[:4], (self.shape, torch.bfloat16, self.helper, 2))
+                self.assertEqual(result.args[5:], (4, 1, -1, -2, 1, False, False, True, True))
                 self.assertIs(result.with_cublasmp(), False)
 
     def test_p2p_also_accepts_native_enum(self):
         result = self.backend.create_comm_overlap_p2p(
-            self.shape, torch.bfloat16, self.helper, 2, NativeComm.RS)
+            self.shape, torch.bfloat16, self.helper, 2, NativeComm.RS
+        )
         self.assertIs(result.args[4], NativeComm.RS)
         self.assertIs(result.with_cublasmp(), False)
 
     def test_existing_native_capability_is_preserved(self):
         self.native.CommOverlap = ModernBulk
         self.native.CommOverlapP2P = ModernP2P
-        bulk = self.backend.create_comm_overlap(
-            self.shape, torch.bfloat16, self.helper, 2)
+        bulk = self.backend.create_comm_overlap(self.shape, torch.bfloat16, self.helper, 2)
         p2p = self.backend.create_comm_overlap_p2p(
-            self.shape, torch.bfloat16, self.helper, 2, NativeComm.AG)
+            self.shape, torch.bfloat16, self.helper, 2, NativeComm.AG
+        )
         self.assertIs(type(bulk), ModernBulk)
         self.assertIs(type(p2p), ModernP2P)
         self.assertTrue(bulk.with_cublasmp())
         self.assertTrue(p2p.with_cublasmp())
 
     def test_legacy_adapter_reuses_type_without_global_native_mutation(self):
-        a = self.backend.create_comm_overlap(
-            self.shape, torch.bfloat16, self.helper, 2)
-        b = self.backend.create_comm_overlap(
-            self.shape, torch.bfloat16, self.helper, 2)
+        a = self.backend.create_comm_overlap(self.shape, torch.bfloat16, self.helper, 2)
+        b = self.backend.create_comm_overlap(self.shape, torch.bfloat16, self.helper, 2)
         self.assertIs(type(a), type(b))
         self.assertFalse(hasattr(LegacyBulk, "with_cublasmp"))
         self.assertIs(a.with_cublasmp(), False)
@@ -175,6 +225,7 @@ class MetaXOverlapCompatibility(unittest.TestCase):
     def test_unsupported_cublasmp_fails_before_native_allocation(self):
         def unexpected():
             raise AssertionError("native allocation must not be attempted")
+
         self.backend._get_tex = unexpected
         for name, extra in [
             ("create_comm_overlap", []),
@@ -183,23 +234,27 @@ class MetaXOverlapCompatibility(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaisesRegex(NotImplementedError, "cuBLASMp"):
                     getattr(self.backend, name)(
-                        self.shape, torch.bfloat16, self.helper, 2, *extra,
-                        use_cublasmp=True)
-
+                        self.shape, torch.bfloat16, self.helper, 2, *extra, use_cublasmp=True
+                    )
 
     def test_queries_require_maca_runtime_identity(self):
         names = {"device_supports_multicast", "ubuf_built_with_mpi", "get_stream_priority_range"}
-        versions = [(SimpleNamespace(), False), (SimpleNamespace(maca=None), False),
-                    (SimpleNamespace(maca=""), False), (SimpleNamespace(maca="3.8.1.0"), True)]
+        versions = [
+            (SimpleNamespace(), False),
+            (SimpleNamespace(maca=None), False),
+            (SimpleNamespace(maca=""), False),
+            (SimpleNamespace(maca="3.8.1.0"), True),
+        ]
         for version, expected in versions:
             with self.subTest(version=version):
-                with patch.object(register_ops, "torch", SimpleNamespace(version=version)), patch.object(metax.MetaxBackend, "is_available", return_value=True):
+                with patch.object(
+                    register_ops, "torch", SimpleNamespace(version=version)
+                ), patch.object(metax.MetaxBackend, "is_available", return_value=True):
                     registry = RegistryCapture()
                     register_ops.register_builtins(registry)
                     impls = [i for i in registry.impls if i.op_name in names]
                     self.assertEqual(len(impls), 3)
                     self.assertEqual([i.is_available() for i in impls], [expected] * 3)
-
 
 
 if __name__ == "__main__":
